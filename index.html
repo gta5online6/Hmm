@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carregar Conteúdo do GitHub</title>
+</head>
+<body>
+    <div id="content-container"></div>
+
+    <script>
+        // URL do arquivo raw no GitHub
+        const githubRawUrl = 'https://raw.githubusercontent.com/gta5online6/re-chat.com/main/index.html';
+        
+        // Elemento onde o conteúdo será inserido
+        const container = document.getElementById('content-container');
+
+        // Carregar o conteúdo
+        fetch(githubRawUrl)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Erro ao carregar o arquivo');
+                }
+                return response.text();
+            })
+            .then(htmlContent => {
+                container.innerHTML = htmlContent;
+            })
+            .catch(error => {
+                console.error('Erro:', error);
+                container.innerHTML = '<p>Não foi possível carregar o conteúdo.</p>';
+            });
+    </script>
+</body>
+</html>
