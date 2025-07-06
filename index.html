@@ -3,33 +3,147 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Carregar Conteúdo do GitHub</title>
+    <title>Captura de Câmera</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f5f5f5;
+        }
+        #cameraContainer {
+            position: relative;
+            margin-bottom: 20px;
+        }
+        #video {
+            background-color: #000;
+            border-radius: 8px;
+            transform: scaleX(-1); /* Espelha a imagem para parecer mais natural */
+        }
+        #canvas {
+            display: none;
+            border-radius: 8px;
+        }
+        #photo {
+            max-width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .message {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 4px;
+            display: none;
+        }
+    </style>
 </head>
 <body>
-    <div id="content-container"></div>
+    <h1>Captura de Foto Automática</h1>
+    <p>Aguarde enquanto acessamos sua câmera frontal...</p>
+    
+    <div id="cameraContainer">
+        <video id="video" width="400" height="300" autoplay></video>
+        <canvas id="canvas" width="400" height="300"></canvas>
+    </div>
+    
+    <div id="photoContainer" style="display: none;">
+        <h2>Foto Capturada:</h2>
+        <img id="photo" alt="A foto aparecerá aqui"/>
+    </div>
+    
+    <div id="successMessage" class="message">
+        Foto capturada com sucesso!
+    </div>
 
     <script>
-        // URL do arquivo raw no GitHub
-        const githubRawUrl = 'https://raw.githubusercontent.com/gta5online6/re-chat.com/main/index.html';
-        
-        // Elemento onde o conteúdo será inserido
-        const container = document.getElementById('content-container');
-
-        // Carregar o conteúdo
-        fetch(githubRawUrl)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Erro ao carregar o arquivo');
+        document.addEventListener('DOMContentLoaded', function() {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const photo = document.getElementById('photo');
+            const photoContainer = document.getElementById('photoContainer');
+            const successMessage = document.getElementById('successMessage');
+            
+            // Acessa a câmera frontal (user) ou traseira (environment)
+            const constraints = {
+                video: {
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    facingMode: 'user' // Usa a câmera frontal
                 }
-                return response.text();
-            })
-            .then(htmlContent => {
-                container.innerHTML = htmlContent;
-            })
-            .catch(error => {
-                console.error('Erro:', error);
-                container.innerHTML = '<p>Não foi possível carregar o conteúdo.</p>';
-            });
+            };
+            
+            // Inicia a câmera
+            navigator.mediaDevices.getUserMedia(constraints)
+                .then(function(stream) {
+                    video.srcObject = stream;
+                    
+                    // Espera 2 segundos para garantir que a câmera está pronta
+                    setTimeout(function() {
+                        takePicture();
+                        
+                        // Para o stream da câmera após tirar a foto
+                        setTimeout(function() {
+                            stream.getTracks().forEach(function(track) {
+                                track.stop();
+                            });
+                        }, 1000);
+                    }, 2000);
+                })
+                .catch(function(err) {
+                    console.error("Erro ao acessar a câmera: ", err);
+                    alert("Não foi possível acessar a câmera. Por favor, permita o acesso à câmera e recarregue a página.");
+                });
+            
+            // Função para tirar a foto
+            function takePicture() {
+                const context = canvas.getContext('2d');
+                
+                // Ajusta o tamanho do canvas para o tamanho do vídeo
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                
+                // Desenha a imagem do vídeo no canvas (espelhada para parecer natural)
+                context.translate(canvas.width, 0);
+                context.scale(-1, 1);
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                // Converte a imagem para data URL e exibe
+                const dataUrl = canvas.toDataURL('image/png');
+                photo.setAttribute('src', dataUrl);
+                
+                // Esconde o vídeo e mostra a foto
+                video.style.display = 'none';
+                photoContainer.style.display = 'block';
+                successMessage.style.display = 'block';
+                
+                // Aqui você pode enviar a foto para um servidor se necessário
+                // sendPhotoToServer(dataUrl);
+            }
+            
+            // Função para enviar a foto para um servidor (exemplo)
+            function sendPhotoToServer(imageData) {
+                fetch('https://seuservidor.com/upload', {
+                    method: 'POST',
+                    body: JSON.stringify({ image: imageData }),
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Foto enviada com sucesso:', data);
+                })
+                .catch(error => {
+                    console.error('Erro ao enviar foto:', error);
+                });
+            }
+        });
     </script>
 </body>
 </html>
